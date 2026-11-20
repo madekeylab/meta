@@ -3,7 +3,7 @@
 
 const SEND_EVERY = 100; // ms
 
-export function createNet({ room, onPeers, onKey, onStatus }) {
+export function createNet({ room, onPeers, onKey, onEvent, onStatus }) {
   let ws = null;
   let tries = 0;
   let retryT = null;
@@ -81,6 +81,8 @@ export function createNet({ room, onPeers, onKey, onStatus }) {
         emit();
       } else if (m.t === 'k') {
         if (onKey) onKey(m.id, m.c);
+      } else if (m.t === 'e') {
+        if (onEvent) onEvent(m.id, m.k);
       }
     };
 
@@ -137,6 +139,9 @@ export function createNet({ room, onPeers, onKey, onStatus }) {
     },
     key(code) {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'k', c: code }));
+    },
+    event(kind) {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'e', k: kind }));
     },
     switchRoom(n) {
       want = String(n);

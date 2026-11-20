@@ -25,7 +25,10 @@ function capGeo(w) {
   return geoCache.get(w);
 }
 
+const texCache = new Map();
 function labelTexture(text, bg, fg, w) {
+  const key = text + bg + fg + w;
+  if (texCache.has(key)) return texCache.get(key);
   const cv = document.createElement('canvas');
   cv.width = Math.round(64 * w);
   cv.height = 64;
@@ -40,6 +43,7 @@ function labelTexture(text, bg, fg, w) {
   }
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
+  texCache.set(key, t);
   return t;
 }
 
@@ -53,6 +57,7 @@ export function buildKeyboard(product) {
   const caseMat = new THREE.MeshStandardMaterial({ color: c.case, roughness: 0.55 });
   const body = new THREE.Mesh(new THREE.BoxGeometry(COLS + 0.7, 0.9, ROWS.length + 0.7), caseMat);
   body.position.y = 0.45;
+  body.castShadow = true;
   inner.add(body);
   const plate = new THREE.Mesh(
     new THREE.BoxGeometry(COLS + 0.1, 0.1, ROWS.length + 0.1),

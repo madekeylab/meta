@@ -121,6 +121,9 @@ export class Room extends DurableObject {
       if (typeof m.c === 'string' && /^[A-Za-z0-9]{1,16}$/.test(m.c)) {
         this.broadcast({ t: 'k', id: att.id, c: m.c }, ws);
       }
+    } else if (m.t === 'e') {
+      // 점프·인사 같은 한 번짜리 동작
+      if (m.k === 'jump' || m.k === 'hi') this.broadcast({ t: 'e', id: att.id, k: m.k }, ws);
     } else if (m.t === 'bye') {
       this.drop(ws);
     }

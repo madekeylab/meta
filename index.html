@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="3D 매장을 걸으며 키보드를 직접 타건해 보는 메이드키 온라인 타건샵">
+<meta name="description" content="키룡이와 함께 3D 매장을 걸으며 키보드를 직접 타건해 보는 메이드키 온라인 타건샵">
+<link rel="icon" type="image/webp" href="/assets/img/kiryong.webp">
 <title>메이드키 타건샵</title>
 <link rel="stylesheet" href="/src/style.css">
 </head>
@@ -13,13 +14,14 @@
 <!-- 입장 화면 -->
 <section id="entry" class="sheet">
   <div class="card">
+    <img class="mascot" src="/assets/img/kiryong.webp" alt="키보드를 치는 키룡이" width="640" height="800">
     <p class="eyebrow">ONLINE TYPING SHOP</p>
     <h1>madekey</h1>
-    <p class="lead">매장을 걸으며 키보드를 직접 타건해 보세요</p>
+    <p class="lead">키룡이가 되어 매장을 걷고, 마음에 드는 키보드를 직접 타건해 보세요</p>
     <label for="nick">닉네임</label>
     <input id="nick" maxlength="12" autocomplete="off" placeholder="최대 12자">
-    <span class="label">캐릭터 색</span>
-    <div id="colors" class="chips" role="radiogroup" aria-label="캐릭터 색"></div>
+    <span class="label">키룡이 모자 색</span>
+    <div id="colors" class="chips" role="radiogroup" aria-label="키룡이 모자 색"></div>
     <button id="go" class="primary">입장하기</button>
   </div>
 </section>
@@ -29,17 +31,37 @@
   <div class="top">
     <button id="roomBtn" class="pill" aria-haspopup="listbox" aria-expanded="false"><b id="roomName">1서버</b><span id="roomCnt">01/100</span></button>
     <div id="roomPop" class="pop" role="listbox" hidden></div>
+    <nav class="zones" aria-label="구역 바로 가기">
+      <button class="pill ghost" data-go="custom">커스텀</button>
+      <button class="pill ghost" data-go="prebuilt">완제품</button>
+    </nav>
     <button id="mute" class="pill" aria-pressed="false">소리 켜짐</button>
   </div>
+
   <p id="hint" class="hint">WASD·방향키 또는 바닥 클릭으로 이동 · 드래그로 둘러보기 · 휠로 확대/축소</p>
-  <button id="prompt" class="prompt" hidden></button>
-  <div id="typing" class="typing" hidden>
-    <div>
-      <b id="tyName"></b><span id="tySw"></span>
-    </div>
-    <div class="stat"><span>누른 키 <b id="tyCount">0</b></span><span>분당 <b id="tyRate">0</b>타</span></div>
-    <button id="stand" class="pill">일어서기 <kbd>Esc</kbd></button>
+  <div id="acts" class="acts">
+    <button id="actHi" class="pill">인사 <kbd>H</kbd></button>
+    <button id="actJump" class="pill">점프 <kbd>Space</kbd></button>
   </div>
+
+  <!-- 제품 정보: 키보드 가까이 가면 뜨고, 타건 중에도 보인다 -->
+  <aside id="info" class="info" hidden>
+    <img id="inImg" alt="">
+    <div class="body">
+      <p class="brandline"><span id="inBrand" class="tag"></span><span id="inKind" class="tag soft"></span></p>
+      <h2 id="inName"></h2>
+      <p class="price"><b id="inPrice"></b><small id="inSample">예시 가격</small></p>
+      <dl id="inSpecs"></dl>
+      <div id="inStat" class="stat" hidden><span>누른 키 <b id="tyCount">0</b></span><span>분당 <b id="tyRate">0</b>타</span></div>
+      <div class="actions">
+        <button id="sitBtn" class="primary small">타건하기 <kbd>E</kbd></button>
+        <button id="stand" class="primary small" hidden>일어서기 <kbd>Esc</kbd></button>
+        <a id="buy" class="link" target="_blank" rel="noopener" hidden>구매하러 가기</a>
+        <button id="inFold" class="link" aria-expanded="true">접기</button>
+      </div>
+    </div>
+  </aside>
+
   <div id="toast" class="toast" hidden></div>
 </div>
 

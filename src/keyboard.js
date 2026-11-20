@@ -70,6 +70,13 @@ export function buildKeyboard(product) {
   const side = (hex) => (sideMats[hex] ||= new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).multiplyScalar(0.86), roughness: 0.7 }));
   const keys = new Map();
   const caps = [];
+  const capGroup = new THREE.Group();
+  inner.add(capGroup);
+  // 멀리서는 키캡 68개 대신 덩어리 하나만 그린다
+  const proxy = new THREE.Mesh(new THREE.BoxGeometry(COLS - 0.1, CAP_H, ROWS.length - 0.1), new THREE.MeshStandardMaterial({ color: c.cap, roughness: 0.7 }));
+  proxy.visible = false;
+  inner.add(proxy);
+  let detail = true;
   const restY = 0.9 + CAP_H / 2 + TRAVEL + 0.05;
 
   ROWS.forEach((row, r) => {
@@ -83,19 +90,26 @@ export function buildKeyboard(product) {
       const mesh = new THREE.Mesh(capGeo(w), [s, s, top, s, s, s]);
       mesh.position.set(x + w / 2, restY, r - (ROWS.length - 1) / 2);
       mesh.userData.code = code;
-      inner.add(mesh);
+      capGroup.add(mesh);
       keys.set(code, { mesh, down: false, y: restY });
       caps.push(mesh);
       x += w;
     }
   });
 
+  proxy.position.y = restY;
   group.rotation.x = 0.09; // 뒤쪽이 살짝 높게
 
   return {
     group,
     caps,
     has: (code) => keys.has(code),
+    setDetail(on) {
+      if (on === detail) return;
+      detail = on;
+      capGroup.visible = on;
+      proxy.visible = !on;
+    },
     press(code, on) {
       const k = keys.get(code);
       if (k) k.down = !!on;
@@ -104,6 +118,7 @@ export function buildKeyboard(product) {
       keys.forEach((k) => (k.down = false));
     },
     update(dt) {
+      if (!detail) return;
       const a = 1 - Math.exp(-40 * dt);
       keys.forEach((k) => {
         const target = k.down ? restY - TRAVEL : restY;

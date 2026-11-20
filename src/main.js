@@ -6,6 +6,9 @@ import { KB_WIDTH } from './keyboard.js';
 import { productImage } from './thumb.js';
 import { createAudio } from './audio.js';
 import { createNet } from './net.js';
+import { createHangul } from './hangul.js';
+import { createGacha, CAPS } from './gacha.js';
+import { createRecorder, loadSavedSounds } from './recorder.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -53,9 +56,13 @@ let mode = 'entry'; // entry | walk | type
 let net = null;
 let goal = null;
 const held = {};
-const cam = { yaw: 0, pitch: 0.5, dist: 13 };
+const cam = { yaw: 0, pitch: 0.52, dist: 14 };
 const remotes = new Map(); // id → { av, x, z, f, seat }
 let near = null;
+let nearSpot = null;
+let panel = null; // 열려 있는 창의 id
+let gachaT = -1;
+const hangul = createHangul();
 let typed = 0;
 let typeStart = 0;
 
@@ -68,8 +75,8 @@ mark.position.y = 0.04;
 mark.visible = false;
 scene.add(mark);
 
-function goTo(x, z) {
-  goal = { x, z, best: 1e9, stuck: 0 };
+function goTo(x, z, next = []) {
+  goal = { x, z, best: 1e9, stuck: 0, next };
   mark.position.set(x, 0.04, z);
   mark.visible = true;
 }
@@ -102,6 +109,9 @@ function enter() {
   store.set('mk-color', String(me.color));
   me.x = SPAWN.x + (Math.random() - 0.5) * 3;
   me.z = SPAWN.z + (Math.random() - 0.5) * 1.5;
+  // 주소에 ?zone=custom|prebuilt|event|rec 를 붙이면 그 구역 앞에서 시작한다
+  const start = ZONE_GATE[new URLSearchParams(location.search).get('zone')];
+  if (start) [me.x, me.z] = start[start.length - 1];
   me.av = makeAvatar(me.color, me.name);
   scene.add(me.av.group);
   audio.unlock();
@@ -112,6 +122,8 @@ function enter() {
   const wantRoom = new URLSearchParams(location.search).get('room') || '1';
   net = createNet({ room: wantRoom, onPeers: syncPeers, onKey: remoteKey, onEvent: remoteEvent, onStatus: netStatus });
   net.presence({ nm: me.name, c: me.color, x: round(me.x), z: round(me.z), f: round(me.face) });
+  // 전에 녹음실에서 적용해 둔 타건음을 불러온다
+  loadSavedSounds(audio).then((ids) => recorder.setSaved(ids));
 }
 $('go').onclick = enter;
 nickInput.addEventListener('keydown', (e) => {
@@ -130,7 +142,9 @@ function netStatus(s) {
   if (s.cap) roomCap = s.cap;
   if (s.online) {
     try {
-      history.replaceState(null, '', '?room=' + encodeURIComponent(s.room));
+      const q = new URLSearchParams(location.search);
+      q.set('room', s.room);
+      history.replaceState(null, '', '?' + q);
     } catch {}
     if (s.moved) toast('고른 서버가 가득 차서 ' + s.room + '서버로 들어왔어요');
   }
@@ -177,11 +191,20 @@ $('mute').onclick = () => {
 };
 
 // 구역 바로 가기: 그 구역 입구까지 걸어간다
-const ZONE_GATE = { custom: [-12, 2.5], prebuilt: [10, 6] };
+const ZONE_GATE = {
+  custom: [[-22, 9]],
+  prebuilt: [[9.5, 9]],
+  event: [[-13, 3.3]],
+  rec: [[-8, 4], [-9.5, -8.5], [-13, -9.5], [-13, -12.9]],
+};
 document.querySelectorAll('[data-go]').forEach((b) => {
   b.onclick = () => {
     if (mode === 'type') stand();
-    if (mode === 'walk') goTo(...ZONE_GATE[b.dataset.go]);
+    if (mode === 'walk') {
+      const [first, ...rest] = ZONE_GATE[b.dataset.go];
+      goTo(first[0], first[1], rest);
+    }
+    b.blur();
   };
 });
 
@@ -193,7 +216,59 @@ function toast(msg) {
   toastT = setTimeout(() => ($('toast').hidden = true), 3000);
 }
 
-/* ---- 제품 정보 창 ---- */
+/* ---- 낮 · 노을 · 밤 ---- */
+const SKY_MODES = ['auto', 'day', 'sunset', 'night'];
+const SKY_NAMES = { auto: '자동', day: '낮', sunset: '노을', night: '밤' };
+let skyMode = SKY_MODES.includes(store.get('mk-sky')) ? store.get('mk-sky') : 'auto';
+function applySky() {
+  const h = new Date().getHours();
+  const real = skyMode === 'auto' ? (h >= 6 && h < 17 ? 'day' : h < 19 && h >= 17 ? 'sunset' : 'night') : skyMode;
+  world.setSky(real, renderer);
+  $('skyName').textContent = SKY_NAMES[skyMode];
+}
+$('skyBtn').onclick = () => {
+  skyMode = SKY_MODES[(SKY_MODES.indexOf(skyMode) + 1) % SKY_MODES.length];
+  store.set('mk-sky', skyMode);
+  applySky();
+};
+applySky();
+setInterval(applySky, 60000);
+
+/* ---- 창 (뽑기 · 녹음실) ---- */
+const gacha = createGacha({
+  $,
+  audio,
+  onSpin: () => (gachaT = 0),
+  onResult: (i) => {
+    if (me.av) sayAvatar(me.av, '「' + CAPS[i].t + '」 뽑았다!', false);
+    if (net) net.event('cap', i);
+  },
+});
+const recorder = createRecorder({ $, audio, toast });
+function openPanel(id) {
+  if (mode !== 'walk') return;
+  panel = id;
+  mode = 'panel';
+  goal = null;
+  mark.visible = false;
+  for (const k in held) delete held[k];
+  $(id).hidden = false;
+  if (id === 'gachaBox') gacha.open();
+  else recorder.open();
+}
+function closePanel() {
+  if (!panel) return;
+  if (panel === 'recBox') recorder.close();
+  $(panel).hidden = true;
+  panel = null;
+  mode = 'walk';
+}
+document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = closePanel));
+document.querySelectorAll('.modal').forEach((m) => m.addEventListener('pointerdown', (e) => e.target === m && closePanel()));
+const useSpot = () => nearSpot && openPanel(nearSpot.type === 'gacha' ? 'gachaBox' : 'recBox');
+$('prompt').onclick = useSpot;
+
+/* ---- 제품 정보 창 ----*/
 let infoFor = -1;
 function showInfo(st) {
   const box = $('info');
@@ -232,6 +307,7 @@ function showInfo(st) {
   $('sitBtn').hidden = typing;
   $('stand').hidden = !typing;
   $('inStat').hidden = !typing;
+  $('tyBox').hidden = !typing;
   box.hidden = false;
 }
 $('inFold').onclick = () => {
@@ -307,11 +383,12 @@ function hello() {
   sayAvatar(me.av, HELLO[Math.floor(Math.random() * HELLO.length)]);
   net.event('hi');
 }
-function remoteEvent(id, kind) {
+function remoteEvent(id, kind, i) {
   const r = remotes.get(id);
   if (!r) return;
   if (kind === 'jump') jumpAvatar(r.av);
   else if (kind === 'hi') sayAvatar(r.av, HELLO[0]);
+  else if (kind === 'cap' && CAPS[i]) sayAvatar(r.av, '「' + CAPS[i].t + '」 뽑았다!', false);
 }
 $('actJump').onclick = jump;
 $('actHi').onclick = hello;
@@ -329,6 +406,8 @@ function sit(i) {
   mode = 'type';
   typed = 0;
   typeStart = 0;
+  hangul.clear();
+  showTyped();
   $('tyCount').textContent = '0';
   $('tyRate').textContent = '0';
   $('hint').hidden = true;
@@ -348,11 +427,21 @@ function stand() {
 $('stand').onclick = stand;
 $('sitBtn').onclick = () => near && sit(near.i);
 
-function strike(code, on) {
+function showTyped() {
+  $('tyText').textContent = hangul.text.split('\n').pop().slice(-40);
+  $('imeBtn').textContent = hangul.korean ? '한' : 'A';
+}
+$('imeBtn').onclick = () => {
+  hangul.toggle();
+  showTyped();
+};
+
+function strike(code, on, shift = false) {
   const st = world.stations[me.seat];
   if (!st || !st.kb.has(code)) return;
   st.kb.press(code, on);
   if (!on) return;
+  if (hangul.press(code, shift)) showTyped();
   audio.key(st.product, code);
   net.key(code);
   typed++;
@@ -365,6 +454,10 @@ function strike(code, on) {
 /* ---- 입력 ---- */
 addEventListener('keydown', (e) => {
   if (mode === 'entry' || e.target === nickInput) return;
+  if (mode === 'panel') {
+    if (e.code === 'Escape') closePanel();
+    return;
+  }
   if (mode === 'type') {
     if (e.code === 'Escape') {
       stand();
@@ -372,12 +465,20 @@ addEventListener('keydown', (e) => {
     }
     if (e.metaKey || e.ctrlKey) return;
     e.preventDefault();
-    if (!e.repeat) strike(e.code, true);
+    if (e.repeat) return;
+    if (e.code === 'Lang1' || e.code === 'AltRight' || e.key === 'HangulMode') {
+      hangul.toggle();
+      showTyped();
+    }
+    strike(e.code, true, e.shiftKey);
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   held[e.code] = true;
-  if (e.code === 'KeyE' && near) sit(near.i);
+  if (e.code === 'KeyE') {
+    if (near) sit(near.i);
+    else useSpot();
+  }
   if (e.code === 'Space' && !e.repeat) jump();
   if (e.code === 'KeyH' && !e.repeat) hello();
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -443,7 +544,7 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
-    if (mode === 'walk') cam.dist = Math.max(4, Math.min(26, cam.dist * (1 + Math.sign(e.deltaY) * 0.1)));
+    if (mode === 'walk') cam.dist = Math.max(4, Math.min(34, cam.dist * (1 + Math.sign(e.deltaY) * 0.1)));
   },
   { passive: false },
 );
@@ -482,7 +583,11 @@ function loop(now) {
       const gx = goal.x - me.x;
       const gz = goal.z - me.z;
       const gd = Math.hypot(gx, gz);
-      if (gd < 0.15) goal = null;
+      if (gd < 0.15 || (goal.next.length && gd < 0.6)) {
+        const n = goal.next.shift();
+        if (n) goTo(n[0], n[1], goal.next);
+        else goal = null;
+      }
       else {
         vx = gx / gd;
         vz = gz / gd;
@@ -517,6 +622,21 @@ function loop(now) {
     }
     showInfo(near);
 
+    // 뽑기·녹음실 앞이면 버튼을 띄운다
+    nearSpot = null;
+    if (!near) for (const sp of world.spots) if (Math.hypot(sp.x - me.x, sp.z - me.z) < sp.r) nearSpot = sp;
+    const pr = $('prompt');
+    if (nearSpot) {
+      if (pr.dataset.k !== nearSpot.type) {
+        pr.dataset.k = nearSpot.type;
+        pr.textContent = nearSpot.label + ' ';
+        const kb = document.createElement('kbd');
+        kb.textContent = 'E';
+        pr.appendChild(kb);
+      }
+      pr.hidden = false;
+    } else pr.hidden = true;
+
     if (net) net.presence({ x: round(me.x), z: round(me.z), f: round(me.face) });
   }
 
@@ -525,6 +645,7 @@ function loop(now) {
     me.av.group.rotation.y = me.face;
     animateAvatar(me.av, speed, dt);
     $('acts').hidden = mode !== 'walk';
+    if (mode !== 'walk') $('prompt').hidden = true;
     me.av.group.visible = mode !== 'type'; // 타건 중에는 내 캐릭터가 키보드를 가리지 않게
   }
 
@@ -544,7 +665,16 @@ function loop(now) {
     g.visible = !(mode === 'type' && Math.hypot(g.position.x - me.x, g.position.z - me.z) < 1.8);
   }
 
-  for (const st of world.stations) st.kb.update(dt);
+  // 가까운 키보드만 키캡을 하나하나 그린다
+  for (const st of world.stations) {
+    st.kb.setDetail(st.i === me.seat || Math.hypot(st.x - me.x, st.z - me.z) < 15);
+    st.kb.update(dt);
+  }
+  if (gachaT >= 0) {
+    gachaT += dt;
+    world.animateGacha(gachaT);
+    if (gachaT > 1.1) gachaT = -1;
+  }
 
   // 카메라
   if (mode === 'type') {
@@ -552,8 +682,10 @@ function loop(now) {
     // 키보드 전체가 화면 너비에 들어오도록 거리를 맞춘다
     const half = Math.tan((camera.fov * Math.PI) / 360);
     const dist = Math.max(1.2, (KB_WIDTH * 0.66) / (half * camera.aspect));
-    camTarget.copy(st.look);
-    camPos.set(st.look.x, st.look.y + dist * 0.93, st.look.z + dist * 0.37);
+    // 아래쪽 정보 창에 가리지 않게 키보드를 화면 위쪽으로 올려 잡는다
+    const shift = dist * 0.13;
+    camTarget.set(st.look.x, st.look.y, st.look.z + shift);
+    camPos.set(st.look.x, st.look.y + dist * 0.93, st.look.z + dist * 0.37 + shift);
   } else {
     camTarget.set(me.x, 1.0, me.z);
     const c = Math.cos(cam.pitch);

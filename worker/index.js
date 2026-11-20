@@ -124,6 +124,8 @@ export class Room extends DurableObject {
     } else if (m.t === 'e') {
       // 점프·인사 같은 한 번짜리 동작
       if (m.k === 'jump' || m.k === 'hi') this.broadcast({ t: 'e', id: att.id, k: m.k }, ws);
+      // 키캡 뽑기 결과: 문구 번호만 주고받는다
+      else if (m.k === 'cap' && Number.isInteger(m.i) && m.i >= 0 && m.i < 200) this.broadcast({ t: 'e', id: att.id, k: 'cap', i: m.i }, ws);
     } else if (m.t === 'bye') {
       this.drop(ws);
     }

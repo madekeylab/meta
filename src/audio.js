@@ -99,6 +99,35 @@ export function createAudio() {
   }
 
   return {
+    /* 녹음실에서 쓰는 AudioContext */
+    context() {
+      ensure();
+      return ac;
+    },
+    /* 직접 녹음한 타건음을 이 키보드에 입힌다 (null이면 되돌린다) */
+    setSample(id, buf) {
+      if (buf) samples.set(id, buf);
+      else samples.delete(id);
+    },
+    hasSample: (id) => typeof samples.get(id) === 'object',
+    /* 짧은 효과음: 뽑기 결과 등. notes = 주파수 목록 */
+    chime(notes = [660, 880, 1320]) {
+      if (muted) return;
+      ensure();
+      notes.forEach((f, i) => {
+        const t = ac.currentTime + i * 0.09;
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.type = 'triangle';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        o.connect(g).connect(master);
+        o.start(t);
+        o.stop(t + 0.4);
+      });
+    },
     /* 브라우저는 사용자가 한 번 누른 뒤에만 소리를 허용하므로 입장 버튼에서 부른다 */
     unlock: ensure,
     key(product, code, vol = 1) {

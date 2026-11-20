@@ -82,7 +82,7 @@ export function createNet({ room, onPeers, onKey, onEvent, onStatus }) {
       } else if (m.t === 'k') {
         if (onKey) onKey(m.id, m.c);
       } else if (m.t === 'e') {
-        if (onEvent) onEvent(m.id, m.k);
+        if (onEvent) onEvent(m.id, m.k, m.i);
       }
     };
 
@@ -140,8 +140,8 @@ export function createNet({ room, onPeers, onKey, onEvent, onStatus }) {
     key(code) {
       if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'k', c: code }));
     },
-    event(kind) {
-      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'e', k: kind }));
+    event(kind, i) {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'e', k: kind, i }));
     },
     switchRoom(n) {
       want = String(n);

@@ -34,7 +34,10 @@
     <nav class="zones" aria-label="구역 바로 가기">
       <button class="pill ghost" data-go="custom">커스텀</button>
       <button class="pill ghost" data-go="prebuilt">완제품</button>
+      <button class="pill ghost" data-go="event">이벤트</button>
+      <button class="pill ghost" data-go="rec">녹음실</button>
     </nav>
+    <button id="skyBtn" class="pill" title="낮·노을·밤 바꾸기">하늘 <span id="skyName">자동</span></button>
     <button id="mute" class="pill" aria-pressed="false">소리 켜짐</button>
   </div>
 
@@ -44,6 +47,8 @@
     <button id="actJump" class="pill">점프 <kbd>Space</kbd></button>
   </div>
 
+  <button id="prompt" class="primary prompt" hidden></button>
+
   <!-- 제품 정보: 키보드 가까이 가면 뜨고, 타건 중에도 보인다 -->
   <aside id="info" class="info" hidden>
     <img id="inImg" alt="">
@@ -52,6 +57,10 @@
       <h2 id="inName"></h2>
       <p class="price"><b id="inPrice"></b><small id="inSample">예시 가격</small></p>
       <dl id="inSpecs"></dl>
+      <div id="tyBox" class="tybox" hidden>
+        <div class="typed" aria-live="off"><span id="tyText"></span><i class="caret"></i></div>
+        <button id="imeBtn" class="pill" title="한/영 바꾸기 (한/영 키 또는 오른쪽 Alt)">한</button>
+      </div>
       <div id="inStat" class="stat" hidden><span>누른 키 <b id="tyCount">0</b></span><span>분당 <b id="tyRate">0</b>타</span></div>
       <div class="actions">
         <button id="sitBtn" class="primary small">타건하기 <kbd>E</kbd></button>
@@ -63,6 +72,69 @@
   </aside>
 
   <div id="toast" class="toast" hidden></div>
+</div>
+
+<!-- 이벤트 존: 키캡 뽑기 -->
+<section id="gachaBox" class="sheet modal" hidden>
+  <div class="card wide">
+    <button class="x" data-close aria-label="닫기">✕</button>
+    <p class="eyebrow">EVENT ZONE</p>
+    <h2>키캡 뽑기</h2>
+    <div class="ga-main">
+      <canvas id="gaCap" width="320" height="320"></canvas>
+      <div>
+        <span id="gaRare" class="tag" hidden></span>
+        <p id="gaMsg" class="ga-msg"></p>
+        <button id="gaSpin" class="primary">뽑기 돌리기</button>
+      </div>
+    </div>
+    <h3>내 키캡 모음 <span id="gaCount"></span></h3>
+    <div id="gaGrid" class="ga-grid"></div>
+  </div>
+</section>
+
+<!-- 녹음실 -->
+<section id="recBox" class="sheet modal" hidden>
+  <div class="card wide">
+    <button class="x" data-close aria-label="닫기">✕</button>
+    <p class="eyebrow">RECORDING STUDIO</p>
+    <h2>녹음실</h2>
+    <p class="lead left">키보드를 고르고, 마이크로 타건 소리를 녹음해 그 키보드의 소리로 입혀요</p>
+
+    <h3><b class="step">1</b> 키보드 고르기</h3>
+    <div id="rcBrands" class="segs"></div>
+    <div id="rcProducts" class="items"></div>
+
+    <h3><b class="step">2</b> 녹음하기 · <span id="rcTarget"></span></h3>
+    <div id="rcKinds" class="segs">
+      <button class="seg" data-kind="key">일반 키 <small>없음</small></button>
+      <button class="seg" data-kind="space">스페이스바 <small>없음</small></button>
+    </div>
+    <div class="rc-panel">
+      <div class="rc-row">
+        <i id="rcDot" class="dot"></i><b id="rcTime">00:00 / 00:30</b>
+        <div class="meter" aria-hidden="true"><i id="rcLevel"></i></div>
+      </div>
+      <canvas id="rcWave" width="640" height="90"></canvas>
+      <p id="rcHint" class="hint2"></p>
+      <div class="rc-row">
+        <button id="rcStart" class="primary rec">● 녹음 시작</button>
+        <button id="rcStop" class="primary stop" hidden>■ 녹음 종료</button>
+        <button id="rcPlay" class="pill" disabled>▶ 미리 듣기</button>
+      </div>
+    </div>
+
+    <h3><b class="step">3</b> 쓰기</h3>
+    <div class="rc-row">
+      <button id="rcApply" class="primary small" disabled>이 키보드에 적용</button>
+      <button id="rcSave" class="pill" disabled>WAV 내려받기</button>
+      <button id="rcClear" class="link" hidden>적용한 녹음 지우기</button>
+    </div>
+    <p class="hint2">적용한 소리는 이 기기에서만 들려요. 모든 손님에게 들리게 하려면 내려받은 WAV 파일을 매장 파일에 넣어야 해요.</p>
+  </div>
+</section>
+
+<div hidden>
 </div>
 
 <script type="module" src="/src/main.js"></script>
